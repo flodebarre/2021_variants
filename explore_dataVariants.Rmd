@@ -1,0 +1,212 @@
+---
+title: "explore_dataVariants"
+author: "FD"
+output: 
+  html_document:
+    code_folding: hide
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(global.par = TRUE)
+```
+
+```{r}
+today <- Sys.Date() # today's date
+```
+
+Mise à jour du `r today`. 
+
+
+Légende
+```{r}
+library("RColorBrewer")
+brw <- brewer.pal(12, "Set3")
+brw[2] <- brw[12] # Darker yellow
+brw[10] <- brw[11] # Lighter shade
+colsAge <- c("#000000FF", brw[1:10])
+names(colsAge) <- c("0", "9", "19", "29", "39", "49", "59", "69", "79", "89", "90")
+colsAge
+pchAge <- c(16, 0:9)
+names(pchAge) <- names(colsAge)
+cexAge <- c(1.2, rep(1, 10))
+names(cexAge) <- names(colsAge)
+
+ages <- c("tous", "0-9", "10-19", "20-29", "30-39", "40-49", "50-59", "60-69", "70-79", "80-89", "90+")
+```
+
+
+```{r}
+par(mfrow = c(1, 1))
+plot(0:1, 0:1, type = "n", axes = FALSE, xlab = "", ylab = "")
+legend(x = 0.5, y = 1, legend = ages, pch = pchAge, col = colsAge)
+```
+
+# Données France
+
+## Load data 
+
+```{r}
+# Données France
+URL <- "https://www.data.gouv.fr/fr/datasets/r/c43d7f3f-c9f5-436b-9b26-728f80e0fd52"
+dataFile <- paste0("data/France_", today, ".csv") # name file with today's date
+download.file(URL, dataFile) # download file from repo
+dat.France <- read.csv(dataFile, sep = ";", stringsAsFactors = FALSE)
+
+
+# Format date
+dat.France$date1 <- as.Date(substring(dat.France$semaine, 1, 10))
+dat.France$date2 <- as.Date(substring(dat.France$semaine, 12, 21))
+
+
+```
+
+## V1
+
+```{r, fig.height = 6}
+# All ages, time
+par(las = 1)
+plot(dat.France$date2, dat.France$Prc_susp_501Y_V1, ylim = c(0, 100), 
+     col = colsAge[as.character(dat.France$cl_age90)], 
+     pch = pchAge[as.character(dat.France$cl_age90)], 
+     cex = cexAge[as.character(dat.France$cl_age90)], 
+     xlab = "date", ylab = "Proportion V1", axes = FALSE)
+axis(1, pos = 0, at = as.Date(unique(dat.France$date2)), labels = format(unique(dat.France$date2), format = "%b %d"))
+axis(2)
+```
+
+## V2/V3
+
+```{r, fig.height = 6}
+# All ages, time
+par(las = 1)
+plot(dat.France$date2, dat.France$Prc_susp_501Y_V2_3, ylim = c(0, 100), 
+     col = colsAge[as.character(dat.France$cl_age90)], 
+     pch = pchAge[as.character(dat.France$cl_age90)], 
+     cex = cexAge[as.character(dat.France$cl_age90)], 
+     xlab = "date", ylab = "Proportion V2/V3", axes = FALSE)
+axis(1, pos = 0, at = as.Date(unique(dat.France$date2)), labels = format(unique(dat.France$date2), format = "%b %d"))
+axis(2)
+```
+
+# Données régions
+
+```{r}
+URL <- "https://www.data.gouv.fr/fr/datasets/r/73e8851a-d851-43f8-89e4-6178b35b7127"
+dataFile <- paste0("data/Regions_", today, ".csv") # name file with today's date
+download.file(URL, dataFile) # download file from repo
+dat.regions <- read.csv(dataFile, sep = ";", stringsAsFactors = FALSE)
+
+# Format date
+dat.regions$date1 <- as.Date(substring(dat.regions$semaine, 1, 10))
+dat.regions$date2 <- as.Date(substring(dat.regions$semaine, 12, 21))
+
+```
+
+```{r}
+# Codes regions
+URL <- "https://www.data.gouv.fr/en/datasets/r/34fc7b52-ef11-4ab0-bc16-e1aae5c942e7"
+dataFile <- "data/coderegions.csv"
+download.file(URL, dataFile)
+codesRegions <- read.csv(dataFile, sep = ",", stringsAsFactors = FALSE)
+
+# Turn into dictionary
+regs <- codesRegions$nom_region
+names(regs) <- as.character(codesRegions$code_region)
+```
+
+```{r}
+# Add region name
+dat.regions$reg_name <- regs[as.character(dat.regions$reg)]
+# dat.regions[floor(runif(10)*1000), c("reg", "reg_name")] # check a few names
+
+# What are the other regions??
+# aggregate(dat.regions$reg, by = list(dat.regions$reg), FUN = length)
+```
+
+## V1
+
+```{r fig.height = 12}
+tmp <- unique(dat.regions$reg) # Region codes
+tmp <- tmp[tmp>10 & tmp <= 93] # Choose only metropolitan regions
+par(mfrow = c(4, 3))
+for(region in tmp){
+  subdat <- dat.regions[dat.regions$reg == region, ]
+  plot(subdat$date2, subdat$Prc_susp_501Y_V1, ylim = c(0, 100), main = regs[as.character(region)], col = colsAge[as.character(subdat$cl_age90)], pch = pchAge[as.character(subdat$cl_age90)], 
+       xlab = "date", ylab = "Proportion V1"
+       )
+}
+```
+
+## V2 
+
+```{r fig.height = 12}
+par(mfrow = c(4, 3))
+for(region in tmp){
+  subdat <- dat.regions[dat.regions$reg == region, ]
+  plot(subdat$date2, subdat$Prc_susp_501Y_V2_3, ylim = c(0, 100), main = regs[as.character(region)], col = colsAge[as.character(subdat$cl_age90)], pch = pchAge[as.character(subdat$cl_age90)], 
+       xlab = "date", ylab = "Proportion V2/V3"
+       )
+}
+```
+
+```{r}
+# 
+```
+
+# Départements
+
+```{r}
+URL <- "https://www.data.gouv.fr/fr/datasets/r/16f4fd03-797f-4616-bca9-78ff212d06e8"
+dataFile <- paste0("data/Dep_", today, ".csv") # name file with today's date
+download.file(URL, dataFile) # download file from repo
+dat.deps <- read.csv(dataFile, sep = ";", stringsAsFactors = FALSE)
+
+# Format date
+dat.deps$date1 <- as.Date(substring(dat.deps$semaine, 1, 10))
+dat.deps$date2 <- as.Date(substring(dat.deps$semaine, 12, 21))
+
+```
+
+```{r}
+# Add name
+deps <- read.csv("data/departement2020.csv", stringsAsFactors = FALSE)
+# Turn into dictionnary
+dps <- deps$libelle
+names(dps) <- as.character(deps$dep)
+```
+
+```{r}
+dat.deps$departement <- dps[as.character(dat.deps$dep)]
+```
+
+## V1
+
+```{r figsDepartements1, fig.height = 100, fig.width = 7}
+par(mfrow = c(35, 3))
+for(idep in sort(unique(dat.deps$dep))){
+  tmp <- dat.deps[dat.deps$dep == idep, ]
+  plot(tmp$date2, tmp$Prc_susp_501Y_V1, ylim = c(0, 100), col = colsAge[as.character(tmp$cl_age90)], pch = pchAge[as.character(tmp$cl_age90)], 
+       xlab = "date", ylab = "Proportion V1", 
+       main = unique(tmp$departement))
+  
+#  legend(x = min(dat.deps$date2), y = 100, legend = ages, pch = pchAge, col = colsAge)
+}
+```
+
+## V2/V3
+
+```{r figsDepartements, fig.height = 100, fig.width = 7}
+par(mfrow = c(35, 3))
+for(idep in sort(unique(dat.deps$dep))){
+  tmp <- dat.deps[dat.deps$dep == idep, ]
+  plot(tmp$date2, tmp$Prc_susp_501Y_V2_3, ylim = c(0, 100), col = colsAge[as.character(tmp$cl_age90)], pch = pchAge[as.character(tmp$cl_age90)], 
+       xlab = "date", ylab = "Proportion V2/V3", 
+       main = unique(tmp$departement))
+  
+#  legend(x = min(dat.deps$date2), y = 100, legend = ages, pch = pchAge, col = colsAge)
+}
+```
+
