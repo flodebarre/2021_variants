@@ -28,7 +28,6 @@ brw[2] <- brw[12] # Darker yellow
 brw[10] <- brw[11] # Lighter shade
 colsAge <- c("#000000FF", brw[1:10])
 names(colsAge) <- c("0", "9", "19", "29", "39", "49", "59", "69", "79", "89", "90")
-colsAge
 pchAge <- c(16, 0:9)
 names(pchAge) <- names(colsAge)
 cexAge <- c(1.2, rep(1, 10))
