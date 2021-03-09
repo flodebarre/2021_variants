@@ -59,7 +59,67 @@ dat.France <- read.csv(dataFile, sep = ";", stringsAsFactors = FALSE)
 dat.France$date1 <- as.Date(substring(dat.France$semaine, 1, 10))
 dat.France$date2 <- as.Date(substring(dat.France$semaine, 12, 21))
 
+# Compute data on total tests
+dat.France$Nb_tests <- dat.France$Nb_tests_PCR_TA_crible / (dat.France$Prc_tests_PCR_TA_crible / 100)
+```
 
+```{r}
+plot(dat.France$date2, dat.France$Nb_tests)
+
+# Compare to another source
+URL <- "https://www.data.gouv.fr/fr/datasets/r/dd0de5d9-b5a5-4503-930a-7b08dc0adc7c"
+dataFile <- paste0("data/tests-France_", today, ".csv") # name file with today's date
+download.file(URL, dataFile) # download file from repo
+dat.tests <- read.csv(dataFile, sep = ";", stringsAsFactors = FALSE)
+# P nombre de tests positifs
+# T nombre de tests total
+
+dat.tests$date <- as.Date(dat.tests$jour)
+dateRange <- range(c(range(dat.France$date1), range(dat.France$date2)))
+
+subdat.tests <- dat.tests[dat.tests$date >= dateRange[1] & dat.tests$date <= dateRange[2],]
+
+# Function to compute a sliding window 
+sliding.window <- function(v, winwdt = 7, pos = 4, na.rm = TRUE){
+  # v vector to be averaged/summed
+  # winwdt width of the window 
+  # pos position of the focal day in the window
+  # FUN function to apply
+  n <- length(v)
+  # Initialize output vector
+  out <- 0 * v + (-1)
+  out[1:(pos-1)] <- NA
+  out[(n + 1 - winwdt + pos) : n] <- NA
+  
+  for(i in pos : (n - winwdt + pos)){
+    out[i] <- mean(v[(i - pos + 1):(i + winwdt - pos)], na.rm = na.rm)
+  }
+  return(out[1:n])
+}
+
+subdat.tests.0 <- subdat.tests[subdat.tests$cl_age90 == 0, ]
+dat.France.0 <- dat.France[dat.France$cl_age90 == 0, ]
+
+subdat.tests.0$P.7.1 <- 7 * sliding.window(subdat.tests.0$P, pos = 1)
+subdat.tests.0$P.7.4 <- 7 * sliding.window(subdat.tests.0$P, pos = 4)
+subdat.tests.0$P.7.7 <- 7 * sliding.window(subdat.tests.0$P, pos = 7)
+subdat.tests.0$P.8.8 <- 8 * sliding.window(subdat.tests.0$P, pos = 8, winwdt = 8)
+
+plot(dat.France.0$date2, dat.France.0$Nb_tests, ylim = c(1*10^5, 2*10^5), pch = 16, 
+     xlab = "date", ylab = "nombre de tests")
+points(subdat.tests.0$date, subdat.tests.0$P.7.1, ylim = c(0, 5*10^5), col = "red")
+points(subdat.tests.0$date, subdat.tests.0$P.7.4, ylim = c(0, 5*10^5), col = "green")
+points(subdat.tests.0$date, subdat.tests.0$P.7.7, ylim = c(0, 5*10^5), col = "blue")
+points(subdat.tests.0$date, subdat.tests.0$P.8.8, ylim = c(0, 5*10^5), col = "purple")
+```
+
+So the sliding window is on the 7 last days. The difference may be due to the variant data being in terms of tests, and the other in terms of people, with duplicates removed. 
+
+```{r}
+#plot(dat.France.0$date2, dat.France.0$Nb_tests, ylim = c(1*10^5, 2*10^5), pch = 16, 
+#     xlab = "date", ylab = "comparaison nombre de tests")
+#points(subdat.tests.0$date, subdat.tests.0$P.7.7, ylim = c(0, 5*10^5), col = "blue")
+#points(subdat.tests.0$date, 1.17*subdat.tests.0$P.7.7, ylim = c(0, 5*10^5), col = "orange")
 ```
 
 ## V1
