@@ -18,6 +18,7 @@ today <- Sys.Date() # today's date
 ```
 
 Mise à jour du `r today`. 
+Source des données : <https://www.data.gouv.fr/fr/datasets/donnees-de-laboratoires-pour-le-depistage-indicateurs-sur-les-variants/>
 
 
 Légende
@@ -134,14 +135,11 @@ So the sliding window is on the 7 last days. The difference may be due to the va
 
 
 dat.France.ages <- dat.France[dat.France$cl_age90 != 0,]
-head(dat.France.ages)
-
-
-
 ```
 
 ## V1
 
+### Plot
 ```{r, fig.height = 6}
 # All ages, time
 par(las = 1)
@@ -154,7 +152,7 @@ axis(1, pos = 0, at = as.Date(unique(dat.France$date2)), labels = format(unique(
 axis(2)
 ```
 
-```{r}
+```{r, eval = FALSE}
 ageClasses <- sort(unique(dat.France$cl_age90))
 nAge <- length(ageClasses)
 
@@ -168,8 +166,33 @@ for(iage in unique(dat.France$cl_age90)){
 }
 ```
 
+### Test
+Model over time
+```{r}
+# Create new colums with information on number of specific PCR tests
+# PCR with V1 result
+dat.France.ages$V1 <- dat.France.ages$Nb_susp_501Y_V1
+# All other PCRs (considering NAs are non-V1)
+dat.France.ages$notV1 <- dat.France.ages$Nb_tests_PCR_TA_crible - dat.France.ages$Nb_susp_501Y_V1
+# All other PCRs with a result (removing NAs)
+dat.France.ages$notV1.narm <- dat.France.ages$Nb_susp_501Y_V2_3 + dat.France.ages$Nb_susp_ABS
+
+# Check that columns currently sum
+all(dat.France.ages$Nb_susp_501Y_V2_3 + dat.France.ages$Nb_susp_ABS + dat.France.ages$Nb_susp_501Y_V1 + dat.France.ages$Nb_susp_IND - dat.France.ages$Nb_tests_PCR_TA_crible == 0)
+
+# GLM
+# Assuming that all IND (indetermine) are non-V1
+mdl <- glm(cbind(V1, notV1) ~ date2 + cl_age90, data = dat.France.ages, family = "binomial")
+summary(mdl)
+
+# Ignoring IND
+mdl.narm <- glm(cbind(V1, notV1.narm) ~ date2 + cl_age90, data = dat.France.ages, family = "binomial")
+summary(mdl.narm)
+```
+
 ## V2/V3
 
+### Plot
 ```{r, fig.height = 6}
 # All ages, time
 par(las = 1)
@@ -180,6 +203,27 @@ plot(dat.France$date2, dat.France$Prc_susp_501Y_V2_3, ylim = c(0, 100),
      xlab = "date", ylab = "Proportion V2/V3", axes = FALSE)
 axis(1, pos = 0, at = as.Date(unique(dat.France$date2)), labels = format(unique(dat.France$date2), format = "%b %d"))
 axis(2)
+```
+
+### Test 
+```{r}
+# Create new colums with information on number of specific PCR tests
+# PCR with V2/V3 result
+dat.France.ages$V23 <- dat.France.ages$Nb_susp_501Y_V2_3
+# All other PCRs (considering NAs are non-V23)
+dat.France.ages$notV23 <- dat.France.ages$Nb_tests_PCR_TA_crible - dat.France.ages$Nb_susp_501Y_V2_3
+# All other PCRs with a result (removing NAs)
+dat.France.ages$notV23.narm <- dat.France.ages$Nb_susp_501Y_V1 + dat.France.ages$Nb_susp_ABS
+
+
+# GLM
+# Assuming that all IND (indetermine) are non-V1
+mdl <- glm(cbind(V23, notV23) ~ date2 + cl_age90, data = dat.France.ages, family = "binomial")
+summary(mdl)
+
+# Ignoring IND
+mdl.narm <- glm(cbind(V23, notV23.narm) ~ date2 + cl_age90, data = dat.France.ages, family = "binomial")
+summary(mdl.narm)
 ```
 
 # Données régions
@@ -217,7 +261,13 @@ dat.regions$reg_name <- regs[as.character(dat.regions$reg)]
 # aggregate(dat.regions$reg, by = list(dat.regions$reg), FUN = length)
 ```
 
+```{r}
+dat.regions.ages <- dat.regions[dat.regions$cl_age90 != 0,]
+```
+
 ## V1
+
+### Plot
 
 ```{r fig.height = 12}
 tmp <- unique(dat.regions$reg) # Region codes
@@ -229,6 +279,31 @@ for(region in tmp){
        xlab = "date", ylab = "Proportion V1"
        )
 }
+```
+
+### Test
+```{r}
+# Create new colums with information on number of specific PCR tests
+# PCR with V1 result
+dat.regions.ages$V1 <- dat.regions.ages$Nb_susp_501Y_V1
+# All other PCRs (considering NAs are non-V1)
+dat.regions.ages$notV1 <- dat.regions.ages$Nb_tests_PCR_TA_crible - dat.regions.ages$Nb_susp_501Y_V1
+# All other PCRs with a result (removing NAs)
+dat.regions.ages$notV1.narm <- dat.regions.ages$Nb_susp_501Y_V2_3 + dat.regions.ages$Nb_susp_ABS
+
+# Check that columns currently sum
+all(dat.regions.ages$Nb_susp_501Y_V2_3 + dat.regions.ages$Nb_susp_ABS + dat.regions.ages$Nb_susp_501Y_V1 + dat.regions.ages$Nb_susp_IND - dat.regions.ages$Nb_tests_PCR_TA_crible == 0)
+
+dat.regions.ages$reg_name.fac <- as.factor(dat.regions.ages$reg_name)
+
+# GLM
+# Assuming that all IND (indetermine) are non-V1
+mdl <- glm(cbind(V1, notV1) ~ date2 + cl_age90 + reg_name.fac, data = dat.regions.ages, family = "binomial")
+summary(mdl)
+
+# Ignoring IND
+mdl.narm <- glm(cbind(V1, notV1.narm) ~ date2 + cl_age90 + reg_name.fac, data = dat.regions.ages, family = "binomial")
+summary(mdl.narm)
 ```
 
 ## V2 
@@ -244,7 +319,23 @@ for(region in tmp){
 ```
 
 ```{r}
-# 
+# Create new colums with information on number of specific PCR tests
+# PCR with V2/3 result
+dat.regions.ages$V23 <- dat.regions.ages$Nb_susp_501Y_V2_3
+# All other PCRs (considering NAs are non-V1)
+dat.regions.ages$notV23 <- dat.regions.ages$Nb_tests_PCR_TA_crible - dat.regions.ages$Nb_susp_501Y_V2_3
+# All other PCRs with a result (removing NAs)
+dat.regions.ages$notV23.narm <- dat.regions.ages$Nb_susp_501Y_V1 + dat.regions.ages$Nb_susp_ABS
+
+# GLM
+# Assuming that all IND (indetermine) are non-V23
+mdl <- glm(cbind(V23, notV23) ~ date2 + cl_age90 + reg_name.fac, data = dat.regions.ages, family = "binomial")
+summary(mdl)
+
+# Ignoring IND
+mdl.narm <- glm(cbind(V23, notV23.narm) ~ date2 + cl_age90 + reg_name.fac, data = dat.regions.ages, family = "binomial")
+summary(mdl.narm)
+
 ```
 
 # Départements
