@@ -64,13 +64,20 @@ dat.France$Nb_tests <- dat.France$Nb_tests_PCR_TA_crible / (dat.France$Prc_tests
 ```
 
 ```{r}
-plot(dat.France$date2, dat.France$Nb_tests)
-
 # Compare to another source
 URL <- "https://www.data.gouv.fr/fr/datasets/r/dd0de5d9-b5a5-4503-930a-7b08dc0adc7c"
 dataFile <- paste0("data/tests-France_", today, ".csv") # name file with today's date
 download.file(URL, dataFile) # download file from repo
 dat.tests <- read.csv(dataFile, sep = ";", stringsAsFactors = FALSE)
+
+
+URL <- "https://www.data.gouv.fr/fr/datasets/r/c1167c4e-8c89-40f2-adb3-1954f8fedfa7"
+dataFile <- paste0("data/tests7j-France_", today, ".csv") # name file with today's date
+download.file(URL, dataFile) # download file from repo
+dat.tests7j <- read.csv(dataFile, sep = ";", stringsAsFactors = FALSE)
+dat.tests7j$date1 <- as.Date(substring(dat.tests7j$semaine_glissante, 1, 10))
+dat.tests7j$date2 <- as.Date(substring(dat.tests7j$semaine_glissante, 12, 21))
+
 # P nombre de tests positifs
 # T nombre de tests total
 
@@ -111,8 +118,12 @@ points(subdat.tests.0$date, subdat.tests.0$P.7.1, ylim = c(0, 5*10^5), col = "re
 points(subdat.tests.0$date, subdat.tests.0$P.7.4, ylim = c(0, 5*10^5), col = "green")
 points(subdat.tests.0$date, subdat.tests.0$P.7.7, ylim = c(0, 5*10^5), col = "blue")
 points(subdat.tests.0$date, subdat.tests.0$P.8.8, ylim = c(0, 5*10^5), col = "purple")
+points(dat.tests7j$date2, dat.tests7j$P, pch = 2)
+legend(x = as.Date("2021-02-18"), y = 200000, col = c("black", "red", "green", "blue", "purple", "black"), legend = c("sidep tests", "w7, c1", "w7, c4", "w7, c7", "w8, c8", "sidep 7j-fin"), pch = c(16, rep(1, 4), 2))
 ```
 
+Legend notation:  
+w: width of the window, c: position of the index day.  
 So the sliding window is on the 7 last days. The difference may be due to the variant data being in terms of tests, and the other in terms of people, with duplicates removed. 
 
 ```{r}
@@ -120,6 +131,13 @@ So the sliding window is on the 7 last days. The difference may be due to the va
 #     xlab = "date", ylab = "comparaison nombre de tests")
 #points(subdat.tests.0$date, subdat.tests.0$P.7.7, ylim = c(0, 5*10^5), col = "blue")
 #points(subdat.tests.0$date, 1.17*subdat.tests.0$P.7.7, ylim = c(0, 5*10^5), col = "orange")
+
+
+dat.France.ages <- dat.France[dat.France$cl_age90 != 0,]
+head(dat.France.ages)
+
+
+
 ```
 
 ## V1
@@ -134,6 +152,20 @@ plot(dat.France$date2, dat.France$Prc_susp_501Y_V1, ylim = c(0, 100),
      xlab = "date", ylab = "Proportion V1", axes = FALSE)
 axis(1, pos = 0, at = as.Date(unique(dat.France$date2)), labels = format(unique(dat.France$date2), format = "%b %d"))
 axis(2)
+```
+
+```{r}
+ageClasses <- sort(unique(dat.France$cl_age90))
+nAge <- length(ageClasses)
+
+for(iage in unique(dat.France$cl_age90)){
+  sub <- dat.France[dat.France$cl_age90 == iage, ]
+  V1 <- sub$Prc_susp_501Y_V1/100
+  t <- sub$date2
+  s <- diff(V1) / (V1[-length(V1)]*(1-V1[-length(V1)]))
+  plot(t[-length(V1)], s, ylim = c(-0.1, 0.1),  main = iage)
+  print(c(iage, mean(s)))
+}
 ```
 
 ## V2/V3
