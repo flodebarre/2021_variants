@@ -201,7 +201,6 @@ summary(mdl2)
 ## Likelihood ratio test
 anova(mdl0, mdl2, test="Chisq")
 
-
 # Ignoring IND
 mdl.narm <- glm(cbind(V1, notV1.narm) ~ date2 + cl_age90, data = dat.France.ages, family = "binomial")
 summary(mdl.narm)
