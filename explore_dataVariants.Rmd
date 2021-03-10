@@ -185,14 +185,22 @@ all(dat.France.ages$Nb_susp_501Y_V2_3 + dat.France.ages$Nb_susp_ABS + dat.France
 # GLM
 # Assuming that all IND (indetermine) are non-V1
 mdl0 <- glm(cbind(V1, notV1) ~ date2 + cl_age90, data = dat.France.ages, family = "binomial")
-summary(mdl)
+summary(mdl0)
 
 # Test date effect
 mdl1 <- glm(cbind(V1, notV1) ~ cl_age90, data = dat.France.ages, family = "binomial")
-summary(mdl)
+summary(mdl1)
 
 ## Likelihood ratio test
 anova(mdl1, mdl0, test="Chisq")
+
+## Test age effect
+mdl2 <- glm(cbind(V1, notV1) ~ date2 + factor(cl_age90), data = dat.France.ages, family = "binomial")
+summary(mdl2)
+
+## Likelihood ratio test
+anova(mdl0, mdl2, test="Chisq")
+
 
 # Ignoring IND
 mdl.narm <- glm(cbind(V1, notV1.narm) ~ date2 + cl_age90, data = dat.France.ages, family = "binomial")
