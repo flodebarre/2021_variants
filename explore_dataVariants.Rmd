@@ -127,7 +127,7 @@ subdat.tests.0$P.7.4 <- 7 * sliding.window(subdat.tests.0$P, pos = 4)
 subdat.tests.0$P.7.7 <- 7 * sliding.window(subdat.tests.0$P, pos = 7)
 subdat.tests.0$P.8.8 <- 8 * sliding.window(subdat.tests.0$P, pos = 8, winwdt = 8)
 
-plot(dat.France.0$date2, dat.France.0$Nb_tests, ylim = c(1*10^5, 2*10^5), pch = 16, 
+plot(dat.France.0$date2, dat.France.0$Nb_tests_POS, ylim = c(1*10^5, 2*10^5), pch = 16, 
      xlab = "date", ylab = "nombre de tests")
 points(subdat.tests.0$date, subdat.tests.0$P.7.1, ylim = c(0, 5*10^5), col = "red")
 points(subdat.tests.0$date, subdat.tests.0$P.7.4, ylim = c(0, 5*10^5), col = "green")
@@ -372,32 +372,34 @@ getVec <- function(dataset, prop = TRUE){
     nn <- dataset$Nb_tests_POS / 7 # Divide by 7 to have average over the week instead of sum
   }
   x <- dataset$date2
-  c1 <- dataset$Prc_susp_501Y_V1/100 * nn
-  c23 <- c1 + dataset$Prc_susp_501Y_V2_3/100 * nn
-  cABS <- c23 + dataset$Prc_susp_ABS/100 * nn
-  cIND <- cABS + dataset$Prc_susp_IND/100 * nn
-  list(x = x, c1 = c1, c23 = c23, cABS = cABS, cIND = cIND)
+  cA <- dataset$Prc_susp_ABS/100 * nn
+  cB <- cA + dataset$Prc_susp_IND/100 * nn
+  cC <- cB + dataset$Prc_susp_501Y_V2_3/100 * nn
+  cD <- cC + dataset$Prc_susp_501Y_V1/100 * nn
+  list(x = x, cA = cA, cB = cB, cC = cC, cD = cD)
 }
 
 colV <- c(brewer.pal(3, "Set2"), gray(0.5))
+colV <- colV[c(3, 4, 2, 1)]
 
-plotDist <- function(x, c1, c23, cABS, cIND){
-  if(max(cIND, na.rm = TRUE) == 1 | max(cIND, na.rm = TRUE) == 100 | max(c1, na.rm = TRUE) > 100){
+plotDist <- function(x, cA, cB, cC, cD){
+
+  if(max(cD, na.rm = TRUE) <= 1.1 | max(cD, na.rm = TRUE) == 100 | max(cA, na.rm = TRUE) > 100){
     yl <- "Proportions variants"
   }else{
     yl <- "Number cases"
   }
-  plot(x, c1, ylim = c(0, max(cIND)), type = "l", 
+  plot(x, cA, ylim = c(0, max(cD)), type = "l", 
        xlab = "date", ylab = yl, axes = FALSE)
   axis(1, pos = 0, labels = format(x, "%b-%d"), at = x)
   axis(2, pos = x[1])
-  polygon(c(x, rev(x)), c(rep(0, length(x)), rev(c1)), col = colV[1], border = NULL)
-  polygon(c(x, rev(x)), c(c1, rev(c23)), col = colV[2], border = NULL)
-  polygon(c(x, rev(x)), c(c23, rev(cABS)), col = colV[3], border = NULL)
-  polygon(c(x, rev(x)), c(cABS, rev(cIND)), col = colV[4], border = NULL)
+  polygon(c(x, rev(x)), c(rep(0, length(x)), rev(cA)), col = colV[1], border = NULL)
+  polygon(c(x, rev(x)), c(cA, rev(cB)), col = colV[2], border = NULL)
+  polygon(c(x, rev(x)), c(cB, rev(cC)), col = colV[3], border = NULL)
+  polygon(c(x, rev(x)), c(cC, rev(cD)), col = colV[4], border = NULL)
   
   nend <- length(x)-1
-  text(x = rep(x[nend], 4), y = c(c1[nend]/2, c1[nend] + (c23[nend] - c1[nend])/2, c23[nend] + (cABS[nend] - c23[nend])/2, cABS[nend] + (cIND[nend] - cABS[nend])/2), labels = c("V1", "V2/V3", "WT", "indet."), col = "white", adj = 1)
+  text(x = rep(x[nend], 4), y = c(cA[nend]/2, cA[nend] + (cB[nend] - cA[nend])/2, cB[nend] + (cC[nend] - cB[nend])/2, cC[nend] + (cD[nend] - cC[nend])/2), labels = c("WT", "indet.", "V2/V3", "V1"), col = "white", adj = 1)
 }
 ```
 
@@ -405,13 +407,13 @@ Frequencies
 
 ```{r}
 cc <- getVec(dat.France.0, prop = TRUE)
-plotDist(cc$x, cc$c1, cc$c23, cc$cABS, cc$cIND)
+plotDist(cc$x, cc$cA, cc$cB, cc$cC, cc$cD)
 ```
 
 Densities
 ```{r}
 cc <- getVec(dat.France.0, prop = FALSE)
-plotDist(cc$x, cc$c1, cc$c23, cc$cABS, cc$cIND)
+plotDist(cc$x, cc$cA, cc$cB, cc$cC, cc$cD)
 ```
 
 
@@ -641,7 +643,7 @@ for(region in tmp){
   subdat <- dat.regions[dat.regions$reg == region, ]
 
   cc <- getVec(subdat[subdat$cl_age90 == 0, ], prop = FALSE)
-  plotDist(cc$x, cc$c1, cc$c23, cc$cABS, cc$cIND)
+  plotDist(cc$x, cc$cA, cc$cB, cc$cC, cc$cD)
   title(main = regs[as.character(region)])
 }
 ```
@@ -716,7 +718,7 @@ for(idep in sort(unique(dat.deps$dep))){
   subdat <- dat.deps[dat.deps$dep == idep, ]
   if(any(!is.na(subdat$Nb_tests_POS))){
     cc <- getVec(subdat[subdat$cl_age90 == 0, ], prop = FALSE)
-    plotDist(cc$x, cc$c1, cc$c23, cc$cABS, cc$cIND)
+    plotDist(cc$x, cc$cA, cc$cB, cc$cC, cc$cD)
     title(main = unique(subdat$departement))
   }
   
