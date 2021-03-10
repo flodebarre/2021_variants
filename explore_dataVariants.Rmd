@@ -70,7 +70,7 @@ dat.France$date2 <- as.Date(substring(dat.France$semaine, 12, 21))
 dat.France$time <- dat.France$date2 - min(dat.France$date2)
 
 # Compute data on total tests
-dat.France$Nb_tests <- dat.France$Nb_tests_PCR_TA_crible / (dat.France$Prc_tests_PCR_TA_crible / 100)
+dat.France$Nb_tests_POS <- dat.France$Nb_tests_PCR_TA_crible / (dat.France$Prc_tests_PCR_TA_crible / 100)
 
 # Dictionnary to reformat age class
 dic.age <- (0:9)*10 + 4.5 # Median of age classes
@@ -360,33 +360,58 @@ anova(mdl2.narm, mdl0.narm, test="Chisq")
 
 ## Multinomial 
 
-Frequencies
+Prepare plots for distribution of variants
 
 ```{r}
 par(mfrow = c(1, 1))
-x <- dat.France.0$date2
-c1 <- dat.France.0$Prc_susp_501Y_V1
-c23 <- c1 + dat.France.0$Prc_susp_501Y_V2_3
-cABS <- c23 + dat.France.0$Prc_susp_ABS
-cIND <- cABS + dat.France.0$Prc_susp_IND
+
+getVec <- function(dataset, prop = TRUE){
+  if(prop){
+    nn <- 1
+  }else{
+    nn <- dataset$Nb_tests_POS / 7 # Divide by 7 to have average over the week instead of sum
+  }
+  x <- dataset$date2
+  c1 <- dataset$Prc_susp_501Y_V1/100 * nn
+  c23 <- c1 + dataset$Prc_susp_501Y_V2_3/100 * nn
+  cABS <- c23 + dataset$Prc_susp_ABS/100 * nn
+  cIND <- cABS + dataset$Prc_susp_IND/100 * nn
+  list(x = x, c1 = c1, c23 = c23, cABS = cABS, cIND = cIND)
+}
 
 colV <- c(brewer.pal(3, "Set2"), gray(0.5))
 
-plot(x, c1, ylim = c(0, 100), type = "l", 
-     xlab = "date", ylab = "Proportion variants", axes = FALSE)
-axis(1, pos = 0, labels = format(x, "%b-%d"), at = x)
-axis(2, pos = x[1])
-polygon(c(x, rev(x)), c(rep(0, length(x)), rev(c1)), col = colV[1], border = NULL)
-polygon(c(x, rev(x)), c(c1, rev(c23)), col = colV[2], border = NULL)
-polygon(c(x, rev(x)), c(c23, rev(cABS)), col = colV[3], border = NULL)
-polygon(c(x, rev(x)), c(cABS, rev(cIND)), col = colV[4], border = NULL)
+plotDist <- function(x, c1, c23, cABS, cIND){
+  if(max(cIND, na.rm = TRUE) == 1 | max(cIND, na.rm = TRUE) == 100 | max(c1, na.rm = TRUE) > 100){
+    yl <- "Proportions variants"
+  }else{
+    yl <- "Number cases"
+  }
+  plot(x, c1, ylim = c(0, max(cIND)), type = "l", 
+       xlab = "date", ylab = yl, axes = FALSE)
+  axis(1, pos = 0, labels = format(x, "%b-%d"), at = x)
+  axis(2, pos = x[1])
+  polygon(c(x, rev(x)), c(rep(0, length(x)), rev(c1)), col = colV[1], border = NULL)
+  polygon(c(x, rev(x)), c(c1, rev(c23)), col = colV[2], border = NULL)
+  polygon(c(x, rev(x)), c(c23, rev(cABS)), col = colV[3], border = NULL)
+  polygon(c(x, rev(x)), c(cABS, rev(cIND)), col = colV[4], border = NULL)
+  
+  nend <- length(x)-1
+  text(x = rep(x[nend], 4), y = c(c1[nend]/2, c1[nend] + (c23[nend] - c1[nend])/2, c23[nend] + (cABS[nend] - c23[nend])/2, cABS[nend] + (cIND[nend] - cABS[nend])/2), labels = c("V1", "V2/V3", "WT", "indet."), col = "white", adj = 1)
+}
+```
 
-nend <- length(x)-1
-text(x = rep(x[nend], 4), y = c(c1[nend]/2, c1[nend] + (c23[nend] - c1[nend])/2, c23[nend] + (cABS[nend] - c23[nend])/2, cABS[nend] + (cIND[nend] - cABS[nend])/2), labels = c("V1", "V2/V3", "WT", "indet."), col = "white", adj = 1)
+Frequencies
 
-lines(dat.France.0$date2, dat.France.0$Prc_susp_501Y_V1 + dat.France.0$Prc_susp_501Y_V2_3)
-lines(dat.France.0$date2, dat.France.0$Prc_susp_501Y_V1 + dat.France.0$Prc_susp_501Y_V2_3 )
-lines(dat.France.0$date2, dat.France.0$Prc_susp_501Y_V1 + dat.France.0$Prc_susp_501Y_V2_3)
+```{r}
+cc <- getVec(dat.France.0, prop = TRUE)
+plotDist(cc$x, cc$c1, cc$c23, cc$cABS, cc$cIND)
+```
+
+Densities
+```{r}
+cc <- getVec(dat.France.0, prop = FALSE)
+plotDist(cc$x, cc$c1, cc$c23, cc$cABS, cc$cIND)
 ```
 
 
@@ -454,7 +479,7 @@ dat.regions$date2 <- as.Date(substring(dat.regions$semaine, 12, 21))
 dat.regions$time <- dat.regions$date2 - min(dat.regions$date2)
 
 # Compute data on total tests
-dat.regions$Nb_tests <- dat.regions$Nb_tests_PCR_TA_crible / (dat.regions$Prc_tests_PCR_TA_crible / 100)
+dat.regions$Nb_tests_POS <- dat.regions$Nb_tests_PCR_TA_crible / (dat.regions$Prc_tests_PCR_TA_crible / 100)
 ```
 
 ```{r}
@@ -606,6 +631,21 @@ summary(mdl.narm)
 
 ```
 
+## All
+
+```{r fig.height = 12}
+par(mfrow = c(4, 3))
+tmp <- unique(dat.regions$reg) # Region codes
+tmp <- tmp[tmp>10 & tmp <= 93] # Choose only metropolitan regions
+for(region in tmp){
+  subdat <- dat.regions[dat.regions$reg == region, ]
+
+  cc <- getVec(subdat[subdat$cl_age90 == 0, ], prop = FALSE)
+  plotDist(cc$x, cc$c1, cc$c23, cc$cABS, cc$cIND)
+  title(main = regs[as.character(region)])
+}
+```
+
 # Départements
 
 ```{r}
@@ -617,6 +657,12 @@ dat.deps <- read.csv(dataFile, sep = ";", stringsAsFactors = FALSE)
 # Format date
 dat.deps$date1 <- as.Date(substring(dat.deps$semaine, 1, 10))
 dat.deps$date2 <- as.Date(substring(dat.deps$semaine, 12, 21))
+
+# Rewrite time as days since beginning of the data
+dat.deps$time <- dat.deps$date2 - min(dat.deps$date2)
+
+# Compute data on total tests
+dat.deps$Nb_tests_POS <- dat.deps$Nb_tests_PCR_TA_crible / (dat.deps$Prc_tests_PCR_TA_crible / 100)
 
 ```
 
@@ -648,15 +694,22 @@ for(idep in sort(unique(dat.deps$dep))){
 
 ## V2/V3
 
-```{r figsDepartements, fig.height = 100, fig.width = 7}
+```{r figsDepartementsMuller, fig.height = 100, fig.width = 7}
 par(mfrow = c(35, 3))
 for(idep in sort(unique(dat.deps$dep))){
-  tmp <- dat.deps[dat.deps$dep == idep, ]
-  plot(tmp$date2, tmp$Prc_susp_501Y_V2_3, ylim = c(0, 100), col = colsAge[as.character(tmp$cl_age90)], pch = pchAge[as.character(tmp$cl_age90)], 
-       xlab = "date", ylab = "Proportion V2/V3", 
-       main = unique(tmp$departement))
+  subdat <- dat.deps[dat.deps$dep == idep, ]
+  if(any(!is.na(subdat$Nb_tests_POS))){
+    cc <- getVec(subdat[subdat$cl_age90 == 0, ], prop = FALSE)
+    plotDist(cc$x, cc$c1, cc$c23, cc$cABS, cc$cIND)
+    title(main = unique(subdat$departement))
+  }
+  
   
 #  legend(x = min(dat.deps$date2), y = 100, legend = ages, pch = pchAge, col = colsAge)
 }
 ```
+
+
+## All
+
 
