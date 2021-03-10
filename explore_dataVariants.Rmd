@@ -184,22 +184,65 @@ all(dat.France.ages$Nb_susp_501Y_V2_3 + dat.France.ages$Nb_susp_ABS + dat.France
 
 # GLM
 # Assuming that all IND (indetermine) are non-V1
-mdl0 <- glm(cbind(V1, notV1) ~ date2 + cl_age90, data = dat.France.ages, family = "binomial")
+mdl0 <- glm(cbind(V1, notV1) ~ date2 * factor(cl_age90), data = dat.France.ages, family = "binomial")
 summary(mdl0)
 
-# Test date effect
-mdl1 <- glm(cbind(V1, notV1) ~ cl_age90, data = dat.France.ages, family = "binomial")
+# Without interaction
+mdl1 <- glm(cbind(V1, notV1) ~ date2 + factor(cl_age90), data = dat.France.ages, family = "binomial")
 summary(mdl1)
 
 ## Likelihood ratio test
 anova(mdl1, mdl0, test="Chisq")
 
-## Test age effect
-mdl2 <- glm(cbind(V1, notV1) ~ date2 + factor(cl_age90), data = dat.France.ages, family = "binomial")
+# Test date effect
+mdl2 <- glm(cbind(V1, notV1) ~ date2 * cl_age90, data = dat.France.ages, family = "binomial")
 summary(mdl2)
 
 ## Likelihood ratio test
-anova(mdl0, mdl2, test="Chisq")
+anova(mdl2, mdl0, test="Chisq")
+
+
+head(dat.France.ages)
+dat.France.ages$time <- dat.France.ages$date2-min(dat.France.ages$date2)
+dat.France.ages$stdage <- (dat.France.ages$cl_age90-mean(dat.France.ages$cl_age90))/dat.France.ages$cl_age90
+
+
+mat <- as.matrix(data.frame(WT=dat.France.ages$Nb_susp_ABS, V1=dat.France.ages$Nb_susp_501Y_V1, V2=dat.France.ages$Nb_susp_501Y_V2_3, INDET=dat.France.ages$Nb_susp_IND))
+
+head(mat)
+library(nnet)
+## Null model
+m0 <- multinom(mat ~ 1)
+summary(m0)
+
+## Compute by hand
+log(colSums(mat)[2]/colSums(mat)[1])
+log(colSums(mat)[3]/colSums(mat)[1])
+log(colSums(mat)[4]/colSums(mat)[1])
+
+## Time effect
+m1 <- multinom(mat ~ time, data=dat.France.ages)
+summary(m1)
+
+## Likelihood ratio test
+anova(m0, m1, test="Chisq")
+
+## Age effect
+m2 <- multinom(mat ~ time + stdage, data=dat.France.ages)
+summary(m2)
+
+## Likelihood ratio test
+anova(m1, m2, test="Chisq")
+
+
+## Age effect
+m3 <- multinom(mat ~ time * stdage, data=dat.France.ages)
+summary(m3)
+
+## Likelihood ratio test
+anova(m2, m3, test="Chisq")
+
+tapply(dat.France.ages$Nb_tests_PCR_TA_crible, list(dat.France.ages$cl_age90, dat.France.ages$time), sum)
 
 # Ignoring IND
 mdl.narm <- glm(cbind(V1, notV1.narm) ~ date2 + cl_age90, data = dat.France.ages, family = "binomial")
