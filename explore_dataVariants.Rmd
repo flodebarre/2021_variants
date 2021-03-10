@@ -694,6 +694,22 @@ for(idep in sort(unique(dat.deps$dep))){
 
 ## V2/V3
 
+```{r figsDepartements23, fig.height = 100, fig.width = 7}
+par(mfrow = c(35, 3))
+for(idep in sort(unique(dat.deps$dep))){
+  tmp <- dat.deps[dat.deps$dep == idep, ]
+  plot(tmp$date2, tmp$Prc_susp_501Y_V2_3, ylim = c(0, 100), col = colsAge[as.character(tmp$cl_age90)], pch = pchAge[as.character(tmp$cl_age90)], 
+       xlab = "date", ylab = "Proportion V2V3", 
+       main = unique(tmp$departement))
+  
+#  legend(x = min(dat.deps$date2), y = 100, legend = ages, pch = pchAge, col = colsAge)
+}
+```
+
+
+
+## All
+
 ```{r figsDepartementsMuller, fig.height = 100, fig.width = 7}
 par(mfrow = c(35, 3))
 for(idep in sort(unique(dat.deps$dep))){
@@ -710,6 +726,5 @@ for(idep in sort(unique(dat.deps$dep))){
 ```
 
 
-## All
 
 
