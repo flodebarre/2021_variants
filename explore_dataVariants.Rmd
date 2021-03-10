@@ -1,6 +1,6 @@
 ---
 title: "explore_dataVariants"
-author: "FD"
+author: "FD, NOR, FB"
 date: "`r format(Sys.Date(), '%d-%B-%Y')`"
 output: 
   html_document:
@@ -18,7 +18,7 @@ knitr::opts_knit$set(global.par = TRUE)
 today <- Sys.Date() # today's date
 ```
 
-Mise à jour du `r today`. 
+Mise à jour du `r today`.   
 Source des données : <https://www.data.gouv.fr/fr/datasets/donnees-de-laboratoires-pour-le-depistage-indicateurs-sur-les-variants/>
 
 
@@ -56,15 +56,22 @@ dataFile <- paste0("data/France_", today, ".csv") # name file with today's date
 download.file(URL, dataFile) # download file from repo
 dat.France <- read.csv(dataFile, sep = ";", stringsAsFactors = FALSE)
 
-head(dat.France)
-
 # Format date
 dat.France$date1 <- as.Date(substring(dat.France$semaine, 1, 10))
 dat.France$date2 <- as.Date(substring(dat.France$semaine, 12, 21))
 
+# Rewrite time as days since beginning of the data
+dat.France$time <- dat.France$date2 - min(dat.France$date2)
+
 # Compute data on total tests
 dat.France$Nb_tests <- dat.France$Nb_tests_PCR_TA_crible / (dat.France$Prc_tests_PCR_TA_crible / 100)
+
+# Dictionnary to reformat age class
+dic.age <- (0:9)*10 + 4.5 # Median of age classes
+names(dic.age) <- as.character(c(0 + (0:8)*10 + 9, 90))
 ```
+
+Compare the data to another source -- number of positive tests
 
 ```{r}
 # Compare to another source
@@ -72,7 +79,6 @@ URL <- "https://www.data.gouv.fr/fr/datasets/r/dd0de5d9-b5a5-4503-930a-7b08dc0ad
 dataFile <- paste0("data/tests-France_", today, ".csv") # name file with today's date
 download.file(URL, dataFile) # download file from repo
 dat.tests <- read.csv(dataFile, sep = ";", stringsAsFactors = FALSE)
-
 
 URL <- "https://www.data.gouv.fr/fr/datasets/r/c1167c4e-8c89-40f2-adb3-1954f8fedfa7"
 dataFile <- paste0("data/tests7j-France_", today, ".csv") # name file with today's date
@@ -127,16 +133,29 @@ legend(x = as.Date("2021-02-18"), y = 200000, col = c("black", "red", "green", "
 
 Legend notation:  
 w: width of the window, c: position of the index day.  
-So the sliding window is on the 7 last days. The difference may be due to the variant data being in terms of tests, and the other in terms of people, with duplicates removed. 
+So the sliding window is on the 7 last days.  
+The difference (about 15% more positives in the variants dataset) may be due to the variant data being in terms of tests, and the other in terms of people, with duplicates removed. 
 
 ```{r}
 #plot(dat.France.0$date2, dat.France.0$Nb_tests, ylim = c(1*10^5, 2*10^5), pch = 16, 
 #     xlab = "date", ylab = "comparaison nombre de tests")
 #points(subdat.tests.0$date, subdat.tests.0$P.7.7, ylim = c(0, 5*10^5), col = "blue")
 #points(subdat.tests.0$date, 1.17*subdat.tests.0$P.7.7, ylim = c(0, 5*10^5), col = "orange")
+```
 
+Format the data further (age class data)
 
+```{r}
+# Data per age class
 dat.France.ages <- dat.France[dat.France$cl_age90 != 0,]
+
+# Add new age class code -- median of the age class
+dat.France.ages$ageClass <- dic.age[as.character(dat.France.ages$cl_age90)]
+
+# Standardize age class values
+dat.France.ages$stdage <- (dat.France.ages$ageClass - mean(dat.France.ages$ageClass))/dat.France.ages$ageClass
+
+
 ```
 
 ## V1
@@ -155,6 +174,7 @@ axis(2)
 ```
 
 ```{r, eval = FALSE}
+# Plot dp/(p(1-p)) for each age class
 ageClasses <- sort(unique(dat.France$cl_age90))
 nAge <- length(ageClasses)
 
@@ -169,7 +189,9 @@ for(iage in unique(dat.France$cl_age90)){
 ```
 
 ### Test
-Model over time
+
+Binomial model
+
 ```{r}
 # Create new colums with information on number of specific PCR tests
 # PCR with V1 result
@@ -179,43 +201,172 @@ dat.France.ages$notV1 <- dat.France.ages$Nb_tests_PCR_TA_crible - dat.France.age
 # All other PCRs with a result (removing NAs)
 dat.France.ages$notV1.narm <- dat.France.ages$Nb_susp_501Y_V2_3 + dat.France.ages$Nb_susp_ABS
 
-# Check that columns currently sum
+# Check that columns correctly sum
 all(dat.France.ages$Nb_susp_501Y_V2_3 + dat.France.ages$Nb_susp_ABS + dat.France.ages$Nb_susp_501Y_V1 + dat.France.ages$Nb_susp_IND - dat.France.ages$Nb_tests_PCR_TA_crible == 0)
+```
 
+
+#### GLM, assume that all indeterminate PCRs are non-V1
+
+1) Age as factor, compare models without and with interaction between age and time
+
+```{r}
 # GLM
 # Assuming that all IND (indetermine) are non-V1
-mdl0 <- glm(cbind(V1, notV1) ~ date2 * factor(cl_age90), data = dat.France.ages, family = "binomial")
+mdl0 <- glm(cbind(V1, notV1) ~ time * factor(ageClass), data = dat.France.ages, family = "binomial")
 summary(mdl0)
 
 # Without interaction
-mdl1 <- glm(cbind(V1, notV1) ~ date2 + factor(cl_age90), data = dat.France.ages, family = "binomial")
+mdl1 <- glm(cbind(V1, notV1) ~ time + factor(ageClass), data = dat.France.ages, family = "binomial")
 summary(mdl1)
 
 ## Likelihood ratio test
 anova(mdl1, mdl0, test="Chisq")
+```
 
+2) Age as quantitative
+
+```{r}
 # Test date effect
-mdl2 <- glm(cbind(V1, notV1) ~ date2 * cl_age90, data = dat.France.ages, family = "binomial")
+mdl2 <- glm(cbind(V1, notV1) ~ time * ageClass, data = dat.France.ages, family = "binomial")
 summary(mdl2)
 
 ## Likelihood ratio test
 anova(mdl2, mdl0, test="Chisq")
+```
+
+#### GLM, ignore indeterminate PCRs
+
+1) Age as factor, compare models without and with interaction between age and time
+
+```{r}
+# GLM
+# Assuming that all IND (indetermine) are non-V1
+mdl0.narm <- glm(cbind(V1, notV1.narm) ~ time * factor(ageClass), data = dat.France.ages, family = "binomial")
+summary(mdl0.narm)
+
+# Without interaction
+mdl1.narm <- glm(cbind(V1, notV1.narm) ~ time + factor(ageClass), data = dat.France.ages, family = "binomial")
+summary(mdl1.narm)
+
+## Likelihood ratio test
+anova(mdl1.narm, mdl0.narm, test="Chisq")
+```
+
+2) Age as quantitative
+
+```{r}
+# Test date effect
+mdl2.narm <- glm(cbind(V1, notV1.narm) ~ time * ageClass, data = dat.France.ages, family = "binomial")
+summary(mdl2.narm)
+
+## Likelihood ratio test
+anova(mdl2.narm, mdl0.narm, test="Chisq")
+```
 
 
-head(dat.France.ages)
-dat.France.ages$time <- dat.France.ages$date2-min(dat.France.ages$date2)
-dat.France.ages$stdage <- (dat.France.ages$cl_age90-mean(dat.France.ages$cl_age90))/dat.France.ages$cl_age90
+## V2/V3
 
+### Plot
+```{r, fig.height = 6}
+# All ages, time
+par(las = 1)
+plot(dat.France$date2, dat.France$Prc_susp_501Y_V2_3, ylim = c(0, 100), 
+     col = colsAge[as.character(dat.France$cl_age90)], 
+     pch = pchAge[as.character(dat.France$cl_age90)], 
+     cex = cexAge[as.character(dat.France$cl_age90)], 
+     xlab = "date", ylab = "Proportion V2/V3", axes = FALSE)
+axis(1, pos = 0, at = as.Date(unique(dat.France$date2)), labels = format(unique(dat.France$date2), format = "%b %d"))
+axis(2)
+```
 
-mat <- as.matrix(data.frame(WT=dat.France.ages$Nb_susp_ABS, V1=dat.France.ages$Nb_susp_501Y_V1, V2=dat.France.ages$Nb_susp_501Y_V2_3, INDET=dat.France.ages$Nb_susp_IND))
+### Test 
 
-head(mat)
+Binomial 
+
+```{r}
+# Create new colums with information on number of specific PCR tests
+# PCR with V2/V3 result
+dat.France.ages$V23 <- dat.France.ages$Nb_susp_501Y_V2_3
+# All other PCRs (considering NAs are non-V23)
+dat.France.ages$notV23 <- dat.France.ages$Nb_tests_PCR_TA_crible - dat.France.ages$Nb_susp_501Y_V2_3
+# All other PCRs with a result (removing NAs)
+dat.France.ages$notV23.narm <- dat.France.ages$Nb_susp_501Y_V1 + dat.France.ages$Nb_susp_ABS
+```
+
+#### GLM, assume that all indeterminate PCRs are non-V1
+
+1) Age as factor, compare models without and with interaction between age and time
+
+```{r}
+# GLM
+# Assuming that all IND (indetermine) are non-V23
+mdl0 <- glm(cbind(V23, notV23) ~ time * factor(ageClass), data = dat.France.ages, family = "binomial")
+summary(mdl0)
+
+# Without interaction
+mdl1 <- glm(cbind(V23, notV23) ~ time + factor(ageClass), data = dat.France.ages, family = "binomial")
+summary(mdl1)
+
+## Likelihood ratio test
+anova(mdl1, mdl0, test="Chisq")
+```
+
+2) Age as quantitative
+
+```{r}
+# Test date effect
+mdl2 <- glm(cbind(V23, notV23) ~ time * ageClass, data = dat.France.ages, family = "binomial")
+summary(mdl2)
+
+## Likelihood ratio test
+anova(mdl2, mdl0, test="Chisq")
+```
+
+#### GLM, ignore indeterminate PCRs
+
+1) Age as factor, compare models without and with interaction between age and time
+
+```{r}
+# GLM
+# Assuming that all IND (indetermine) are non-V23
+mdl0.narm <- glm(cbind(V23, notV23.narm) ~ time * factor(ageClass), data = dat.France.ages, family = "binomial")
+summary(mdl0.narm)
+
+# Without interaction
+mdl1.narm <- glm(cbind(V23, notV23.narm) ~ time + factor(ageClass), data = dat.France.ages, family = "binomial")
+summary(mdl1.narm)
+
+## Likelihood ratio test
+anova(mdl1.narm, mdl0.narm, test="Chisq")
+```
+
+2) Age as quantitative
+
+```{r}
+# Test date effect
+mdl2.narm <- glm(cbind(V23, notV23.narm) ~ time * ageClass, data = dat.France.ages, family = "binomial")
+summary(mdl2.narm)
+
+## Likelihood ratio test
+anova(mdl2.narm, mdl0.narm, test="Chisq")
+```
+
+## Multinomial 
+
+```{r}
+mat <- as.matrix(data.frame(WT = dat.France.ages$Nb_susp_ABS, 
+                            V1 = dat.France.ages$Nb_susp_501Y_V1, 
+                            V2 = dat.France.ages$Nb_susp_501Y_V2_3, 
+                            INDET = dat.France.ages$Nb_susp_IND))
+
 library(nnet)
+
 ## Null model
 m0 <- multinom(mat ~ 1)
 summary(m0)
 
-## Compute by hand
+## Compute by hand to check result
 log(colSums(mat)[2]/colSums(mat)[1])
 log(colSums(mat)[3]/colSums(mat)[1])
 log(colSums(mat)[4]/colSums(mat)[1])
@@ -234,58 +385,24 @@ summary(m2)
 ## Likelihood ratio test
 anova(m1, m2, test="Chisq")
 
-
 ## Age effect
 m3 <- multinom(mat ~ time * stdage, data=dat.France.ages)
 summary(m3)
 
 ## Likelihood ratio test
 anova(m2, m3, test="Chisq")
-
-tapply(dat.France.ages$Nb_tests_PCR_TA_crible, list(dat.France.ages$cl_age90, dat.France.ages$time), sum)
-
-# Ignoring IND
-mdl.narm <- glm(cbind(V1, notV1.narm) ~ date2 + cl_age90, data = dat.France.ages, family = "binomial")
-summary(mdl.narm)
 ```
 
-## V2/V3
+Pb in the data is the change in the age structure of positive individuals; to really test the effet, we would need information on the negative tests as well, and the age distribution in these negative tests. 
 
-### Plot
-```{r, fig.height = 6}
-# All ages, time
-par(las = 1)
-plot(dat.France$date2, dat.France$Prc_susp_501Y_V2_3, ylim = c(0, 100), 
-     col = colsAge[as.character(dat.France$cl_age90)], 
-     pch = pchAge[as.character(dat.France$cl_age90)], 
-     cex = cexAge[as.character(dat.France$cl_age90)], 
-     xlab = "date", ylab = "Proportion V2/V3", axes = FALSE)
-axis(1, pos = 0, at = as.Date(unique(dat.France$date2)), labels = format(unique(dat.France$date2), format = "%b %d"))
-axis(2)
-```
-
-### Test 
 ```{r}
-# Create new colums with information on number of specific PCR tests
-# PCR with V2/V3 result
-dat.France.ages$V23 <- dat.France.ages$Nb_susp_501Y_V2_3
-# All other PCRs (considering NAs are non-V23)
-dat.France.ages$notV23 <- dat.France.ages$Nb_tests_PCR_TA_crible - dat.France.ages$Nb_susp_501Y_V2_3
-# All other PCRs with a result (removing NAs)
-dat.France.ages$notV23.narm <- dat.France.ages$Nb_susp_501Y_V1 + dat.France.ages$Nb_susp_ABS
-
-
-# GLM
-# Assuming that all IND (indetermine) are non-V1
-mdl <- glm(cbind(V23, notV23) ~ date2 + cl_age90, data = dat.France.ages, family = "binomial")
-summary(mdl)
-
-# Ignoring IND
-mdl.narm <- glm(cbind(V23, notV23.narm) ~ date2 + cl_age90, data = dat.France.ages, family = "binomial")
-summary(mdl.narm)
+tapply(dat.France.ages$Nb_tests_PCR_TA_crible, list(dat.France.ages$cl_age90, dat.France.ages$time), sum)
 ```
+
 
 # Données régions
+
+## Load data 
 
 ```{r}
 URL <- "https://www.data.gouv.fr/fr/datasets/r/73e8851a-d851-43f8-89e4-6178b35b7127"
@@ -297,6 +414,11 @@ dat.regions <- read.csv(dataFile, sep = ";", stringsAsFactors = FALSE)
 dat.regions$date1 <- as.Date(substring(dat.regions$semaine, 1, 10))
 dat.regions$date2 <- as.Date(substring(dat.regions$semaine, 12, 21))
 
+# Rewrite time as days since beginning of the data
+dat.regions$time <- dat.regions$date2 - min(dat.regions$date2)
+
+# Compute data on total tests
+dat.regions$Nb_tests <- dat.regions$Nb_tests_PCR_TA_crible / (dat.regions$Prc_tests_PCR_TA_crible / 100)
 ```
 
 ```{r}
@@ -320,8 +442,17 @@ dat.regions$reg_name <- regs[as.character(dat.regions$reg)]
 # aggregate(dat.regions$reg, by = list(dat.regions$reg), FUN = length)
 ```
 
+Format data further
+
 ```{r}
 dat.regions.ages <- dat.regions[dat.regions$cl_age90 != 0,]
+
+# Add new age class code -- median of the age class
+dat.regions.ages$ageClass <- dic.age[as.character(dat.regions.ages$cl_age90)]
+
+# Standardize age class values
+dat.regions.ages$stdage <- (dat.regions.ages$ageClass - mean(dat.regions.ages$ageClass))/dat.regions.ages$ageClass
+
 ```
 
 ## V1
