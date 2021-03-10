@@ -22,6 +22,12 @@ Mise à jour du `r today`.
 Source des données : <https://www.data.gouv.fr/fr/datasets/donnees-de-laboratoires-pour-le-depistage-indicateurs-sur-les-variants/>
 
 
+---
+QUESTIONS:   
+-  Ajouter données Flash ? Pour avoir des points plus anciens  
+---
+
+
 Légende
 ```{r}
 library("RColorBrewer")
@@ -354,6 +360,36 @@ anova(mdl2.narm, mdl0.narm, test="Chisq")
 
 ## Multinomial 
 
+Frequencies
+
+```{r}
+par(mfrow = c(1, 1))
+x <- dat.France.0$date2
+c1 <- dat.France.0$Prc_susp_501Y_V1
+c23 <- c1 + dat.France.0$Prc_susp_501Y_V2_3
+cABS <- c23 + dat.France.0$Prc_susp_ABS
+cIND <- cABS + dat.France.0$Prc_susp_IND
+
+colV <- c(brewer.pal(3, "Set2"), gray(0.5))
+
+plot(x, c1, ylim = c(0, 100), type = "l", 
+     xlab = "date", ylab = "Proportion variants", axes = FALSE)
+axis(1, pos = 0, labels = format(x, "%b-%d"), at = x)
+axis(2, pos = x[1])
+polygon(c(x, rev(x)), c(rep(0, length(x)), rev(c1)), col = colV[1], border = NULL)
+polygon(c(x, rev(x)), c(c1, rev(c23)), col = colV[2], border = NULL)
+polygon(c(x, rev(x)), c(c23, rev(cABS)), col = colV[3], border = NULL)
+polygon(c(x, rev(x)), c(cABS, rev(cIND)), col = colV[4], border = NULL)
+
+nend <- length(x)-1
+text(x = rep(x[nend], 4), y = c(c1[nend]/2, c1[nend] + (c23[nend] - c1[nend])/2, c23[nend] + (cABS[nend] - c23[nend])/2, cABS[nend] + (cIND[nend] - cABS[nend])/2), labels = c("V1", "V2/V3", "WT", "indet."), col = "white", adj = 1)
+
+lines(dat.France.0$date2, dat.France.0$Prc_susp_501Y_V1 + dat.France.0$Prc_susp_501Y_V2_3)
+lines(dat.France.0$date2, dat.France.0$Prc_susp_501Y_V1 + dat.France.0$Prc_susp_501Y_V2_3 )
+lines(dat.France.0$date2, dat.France.0$Prc_susp_501Y_V1 + dat.France.0$Prc_susp_501Y_V2_3)
+```
+
+
 ```{r}
 mat <- as.matrix(data.frame(WT = dat.France.ages$Nb_susp_ABS, 
                             V1 = dat.France.ages$Nb_susp_501Y_V1, 
@@ -472,6 +508,7 @@ for(region in tmp){
 ```
 
 ### Test
+
 ```{r}
 # Create new colums with information on number of specific PCR tests
 # PCR with V1 result
@@ -485,10 +522,51 @@ dat.regions.ages$notV1.narm <- dat.regions.ages$Nb_susp_501Y_V2_3 + dat.regions.
 all(dat.regions.ages$Nb_susp_501Y_V2_3 + dat.regions.ages$Nb_susp_ABS + dat.regions.ages$Nb_susp_501Y_V1 + dat.regions.ages$Nb_susp_IND - dat.regions.ages$Nb_tests_PCR_TA_crible == 0)
 
 dat.regions.ages$reg_name.fac <- as.factor(dat.regions.ages$reg_name)
+```
 
+#### GLM, assume that all indeterminate PCRs are non-V1
+
+1) Age as factor, compare models without and with interaction between age and time
+
+```{r}
 # GLM
 # Assuming that all IND (indetermine) are non-V1
-mdl <- glm(cbind(V1, notV1) ~ date2 + cl_age90 + reg_name.fac, data = dat.regions.ages, family = "binomial")
+mdl0 <- glm(cbind(V1, notV1) ~ time * factor(ageClass) * factor(reg_name), data = dat.regions.ages, family = "binomial")
+summary(mdl0)
+
+# Without interaction
+mdl1 <- glm(cbind(V1, notV1) ~ time*factor(reg_name) + factor(ageClass), data = dat.regions.ages, family = "binomial")
+summary(mdl1)
+
+# Without interaction
+mdl1bis <- glm(cbind(V1, notV1) ~ time*factor(ageClass) + factor(reg_name), data = dat.regions.ages, family = "binomial")
+summary(mdl1bis)
+
+# Without interaction at all
+mdl2 <- glm(cbind(V1, notV1) ~ time + factor(ageClass) + factor(reg_name), data = dat.regions.ages, family = "binomial")
+summary(mdl2)
+
+## Likelihood ratio tests
+anova(mdl1, mdl0, test="Chisq")
+anova(mdl1bis, mdl0, test="Chisq")
+anova(mdl2, mdl0, test="Chisq")
+```
+
+2) Age as quantitative
+
+```{r}
+mdl3 <- glm(cbind(V1, notV1) ~ time * ageClass * factor(reg_name), data = dat.regions.ages, family = "binomial")
+summary(mdl3)
+
+
+## Likelihood ratio test
+anova(mdl3, mdl0, test="Chisq")
+```
+
+```{r}
+# GLM
+# Assuming that all IND (indetermine) are non-V1
+mdl <- glm(cbind(V1, notV1) ~ date2 * as.factor(ageClass) + reg_name.fac, data = dat.regions.ages, family = "binomial")
 summary(mdl)
 
 # Ignoring IND
@@ -519,11 +597,11 @@ dat.regions.ages$notV23.narm <- dat.regions.ages$Nb_susp_501Y_V1 + dat.regions.a
 
 # GLM
 # Assuming that all IND (indetermine) are non-V23
-mdl <- glm(cbind(V23, notV23) ~ date2 + cl_age90 + reg_name.fac, data = dat.regions.ages, family = "binomial")
+mdl <- glm(cbind(V23, notV23) ~ date2 + ageClass + reg_name.fac, data = dat.regions.ages, family = "binomial")
 summary(mdl)
 
 # Ignoring IND
-mdl.narm <- glm(cbind(V23, notV23.narm) ~ date2 + cl_age90 + reg_name.fac, data = dat.regions.ages, family = "binomial")
+mdl.narm <- glm(cbind(V23, notV23.narm) ~ date2 + ageClass + reg_name.fac, data = dat.regions.ages, family = "binomial")
 summary(mdl.narm)
 
 ```
