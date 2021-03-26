@@ -168,6 +168,24 @@ dat.France.ages$stdage <- (dat.France.ages$ageClass - mean(dat.France.ages$ageCl
 
 ## V1
 
+### Compute r
+
+```{r}
+names(dat.France)
+
+dat.France$rABS <- NA
+dat.France$rV1 <- NA
+dat.France$rV23 <- NA
+
+for(iage in unique(dat.France$cl_age90)){
+  ilines <- which(dat.France$cl_age90 == iage)
+  sub <- dat.France[ilines, ]
+  dat.France[ilines, "rABS"] <- c(diff(sub$Nb_susp_ABS), NA)
+  dat.France[ilines, "rV1"] <- c(diff(sub$Nb_susp_501Y_V1), NA)
+  dat.France[ilines, "rV23"] <- c(diff(sub$Nb_susp_501Y_V2_3), NA)
+}
+```
+
 ### Plot
 ```{r, fig.height = 6}
 # All ages, time
@@ -185,14 +203,21 @@ axis(2)
 # Plot dp/(p(1-p)) for each age class
 ageClasses <- sort(unique(dat.France$cl_age90))
 nAge <- length(ageClasses)
-
+dat.France$s <- NA
+dat.France$diffTot <- NA
 for(iage in unique(dat.France$cl_age90)){
-  sub <- dat.France[dat.France$cl_age90 == iage, ]
+  ilines <- which(dat.France$cl_age90 == iage)
+  sub <- dat.France[ilines, ]
   V1 <- sub$Prc_susp_501Y_V1/100
   t <- sub$date2
   s <- diff(V1) / (V1[-length(V1)]*(1-V1[-length(V1)]))
+  V2 <- log(V1/(1-V1)) # Logit
+  s2 <- diff(V2)
   plot(t[-length(V1)], s, ylim = c(-0.1, 0.1),  main = iage)
+  lines(t[-length(V2)], s2, col = 2)
   print(c(iage, mean(s)))
+  dat.France[ilines, "s"] <- c(s2, NA)
+  dat.France[ilines, "diffTot"] <- c(diff(sub$Nb_tests_POS), NA)
 }
 ```
 
@@ -273,6 +298,21 @@ anova(mdl2.narm, mdl0.narm, test="Chisq")
 ```
 
 
+```{r, eval = FALSE}
+plot(dat.France$diffTot, dat.France$s, 
+     xlab = "Increase in total number of positive tests over 1 day", 
+     ylab = "s")
+
+all(is.na(dat.France$diffTot) == is.na(dat.France$s))
+lineRemove <- is.na(dat.France$diffTot)
+mdl <- lm(dat.France$s[!lineRemove] ~ dat.France$diffTot[!lineRemove])
+summary(mdl)
+
+cor.test(dat.France$diffTot[!lineRemove], dat.France$s[!lineRemove])
+```
+
+No effet of epidemic growth on selective advantage of the variant
+
 ## V2/V3
 
 ### Plot
@@ -349,6 +389,8 @@ summary(mdl1.narm)
 anova(mdl1.narm, mdl0.narm, test="Chisq")
 ```
 
+Conclusion : the change in frequency of the variant varies across age classes, different slopes for different ages. Faster for youngest (0-10) and for oldest (70+). Initially lower frequency for old people, but steeper slope: Older ones catch back younger ones. 
+
 2) Age as quantitative
 
 ```{r}
@@ -385,13 +427,12 @@ colV <- c(brewer.pal(3, "Set2"), gray(0.5))
 colV <- colV[c(3, 4, 2, 1)]
 
 plotDist <- function(x, cA, cB, cC, cD){
-
-  if(max(cD, na.rm = TRUE) <= 1.1 | max(cD, na.rm = TRUE) == 100 | max(cA, na.rm = TRUE) > 100){
-    yl <- "Proportions variants"
-  }else{
+#  if(max(cD, na.rm = TRUE) <= 1.1 | max(cD, na.rm = TRUE) >= 99 | max(cA, na.rm = TRUE) >= 99){
+#    yl <- "Proportions variants"
+#  }else{
     yl <- "Number cases"
-  }
-  plot(x, cA, ylim = c(0, max(cD)), type = "l", 
+#  }
+  plot(x, cA, ylim = c(0, max(cD, na.rm = TRUE)), type = "l", 
        xlab = "date", ylab = yl, axes = FALSE)
   axis(1, pos = 0, labels = format(x, "%b-%d"), at = x)
   axis(2, pos = x[1])
