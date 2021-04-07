@@ -166,6 +166,15 @@ dat.France.ages$stdage <- (dat.France.ages$ageClass - mean(dat.France.ages$ageCl
 
 ```
 
+
+## Effort
+
+```{r}
+par(las = 1)
+with(dat.France[dat.France$cl_age90 == "0",], {
+plot(date2, Prc_tests_PCR_TA_crible, ylim = c(0, 100), type = "l", xlab = "date", ylab = "Proportion tests criblés")})
+```
+
 ## V1
 
 ### Compute r
@@ -723,6 +732,20 @@ names(dps) <- as.character(deps$dep)
 dat.deps$departement <- dps[as.character(dat.deps$dep)]
 ```
 
+## Effort
+
+```{r, fig.height = 100, fig.width = 7}
+par(las = 1)
+par(mfrow = c(35, 3))
+for(idep in sort(unique(dat.deps$dep))){
+  tmp <- dat.deps[dat.deps$dep == idep, ]
+  
+  with(tmp[tmp$cl_age90 == "0",], {
+  plot(date2, Prc_tests_PCR_TA_crible, ylim = c(0, 100), type = "l", xlab = "date", ylab = "Proportion tests criblés", 
+       main = unique(tmp$departement))})
+}
+```
+
 ## V1
 
 ```{r figsDepartements1, fig.height = 100, fig.width = 7}
@@ -757,7 +780,7 @@ for(idep in sort(unique(dat.deps$dep))){
 
 ```{r figsDepartementsMuller, fig.height = 100, fig.width = 7}
 par(mfrow = c(35, 3))
-for(idep in sort(unique(dat.deps$dep))){
+for(idep in sort(unique(deps$dep))){
   subdat <- dat.deps[dat.deps$dep == idep, ]
   if(any(!is.na(subdat$Nb_tests_POS))){
     cc <- getVec(subdat[subdat$cl_age90 == 0, ], prop = FALSE)
